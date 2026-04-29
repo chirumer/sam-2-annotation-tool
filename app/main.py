@@ -1,5 +1,6 @@
 import os
 import uuid
+import json
 import shutil
 import datetime
 import traceback
@@ -15,9 +16,17 @@ from .utils import *
 from .models import MockSAM2Predictor
 
 def log_debug(msg, **kwargs):
-    """Append a verbose debug entry to /content/workspace/out/server_debug.json"""
-    entry = {"ts": datetime.datetime.utcnow().isoformat() + "Z", "msg": msg}
+    """Log to stdout for Colab and append to /content/workspace/out/server_debug.json"""
+    ts = datetime.datetime.utcnow().isoformat() + "Z"
+    entry = {"ts": ts, "msg": msg}
     entry.update(kwargs)
+    
+    # Print for Colab visibility
+    log_str = f"[{ts}] {msg}"
+    if kwargs:
+        log_str += f" | {json.dumps(kwargs)}"
+    print(log_str, flush=True)
+
     try:
         out_dir = "/content/workspace/out"
         os.makedirs(out_dir, exist_ok=True)
