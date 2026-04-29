@@ -67,3 +67,69 @@ def unzip_videos(zip_path, out_dir, exts=(".mp4", ".mov", ".mkv", ".avi", ".webm
         for fn in files:
             if os.path.splitext(fn)[1].lower() in exts: found.append(os.path.abspath(os.path.join(root, fn)))
     return sorted(found)
+
+import shutil
+try:
+    import cv2
+except Exception:
+    cv2 = None
+
+def probe_video(path):
+    if cv2 is None:
+        raise RuntimeError("OpenCV not loaded.")
+    cap = cv2.VideoCapture(path)
+    if not cap.isOpened():
+        raise RuntimeError(f"OpenCV cannot open video: {path}")
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    cap.release()
+    if not fps or fps != fps or fps <= 0:
+        try:
+            import subprocess
+            out = subprocess.check_output([
+                "ffprobe", "-v", "error", "-select_streams", "v:0",
+                "-show_entries", "stream=r_frame_rate",
+                "-of", "default=nokey=1:noprint_wrappers=1", path,
+            ], text=True).strip()
+            num, _, den = out.partition("/")
+            fps = float(num) / float(den) if den and float(den) != 0 else float(num)
+        except Exception as e:
+            raise RuntimeError(f"Cannot determine fps for {path}: {e}")
+    return {"fps": float(fps), "n_frames": int(n), "width": int(w), "height": int(h)}
+
+def extract_frames_from_video(mp4_path, out_dir, quality=2):
+    os.makedirs(out_dir, exist_ok=True)
+    info = probe_video(mp4_path)
+    cmd = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-i", mp4_path, "-q:v", str(quality), "-start_number", "0",
+        os.path.join(out_dir, "%05d.jpg"),
+    ]
+    import subprocess
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        raise RuntimeError(f"ffmpeg frame extraction failed:\n{res.stderr}")
+    n_frames = sum(1 for f in os.listdir(out_dir) if f.lower().endswith(".jpg"))
+    if n_frames == 0:
+        raise RuntimeError(f"No frames extracted from {mp4_path}")
+    return {
+        "out_dir": out_dir, "n_frames": n_frames, "fps": info["fps"],
+        "width": info["width"], "height": info["height"],
+    }
+
+def make_preview_mp4(mp4_path, out_path, max_width=720):
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    cmd = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-i", mp4_path,
+        "-vf", f"scale='min({max_width},iw)':-2",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+        "-movflags", "+faststart", "-an", out_path,
+    ]
+    import shutil, subprocess
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0 or not os.path.exists(out_path):
+        shutil.copy(mp4_path, out_path)
+    return out_path
