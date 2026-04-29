@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAM 2 Assisted Annotator</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef3f8;
+      --surface: #ffffff;
+      --surface-2: #f7fafc;
+      --ink: #17202a;
+      --muted: #627083;
+      --line: #d6dee8;
+      --line-strong: #aebccc;
+      --blue: #0f6aa8;
+      --blue-2: #e8f3fb;
+      --green: #1f7a52;
+      --red: #b42318;
+      --amber: #a15c00;
+      --shadow: 0 18px 50px rgba(25, 42, 62, 0.14);
+      --topbar: 56px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    body { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+    button, input, select { font: inherit; }
+    button { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); border-radius: 6px; padding: 8px 12px; cursor: pointer; min-height: 36px; }
+    button:hover:not(:disabled) { border-color: var(--blue); }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
+    button.primary { background: var(--blue); border-color: var(--blue); color: white; }
+    button.success { background: var(--green); border-color: var(--green); color: white; }
+    button.danger { color: var(--red); border-color: #d92d20; }
+    input[type="text"], input[type="file"], select, input[type="number"] { border: 1px solid var(--line-strong); border-radius: 6px; background: white; color: var(--ink); padding: 8px 10px; min-height: 36px; width: 100%; }
+    input[type="range"] { width: 100%; }
+    label { color: var(--muted); font-size: 12px; font-weight: 650; }
+    .app { height: 100vh; display: grid; grid-template-rows: var(--topbar) 1fr 34px; overflow: hidden; }
+    .topbar { display: flex; align-items: center; gap: 14px; padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--line); min-width: 0; }
+    .brand { display: flex; flex-direction: column; min-width: 190px; }
+    .brand strong { font-size: 14px; line-height: 1.1; }
+    .brand span { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tabs { display: flex; gap: 6px; min-width: 0; flex: 1; }
+    .tab { border-color: transparent; background: transparent; padding: 7px 12px; font-weight: 700; color: var(--muted); }
+    .tab.active { background: var(--blue-2); border-color: #b7d6ea; color: #084e7e; }
+    .content { min-height: 0; overflow: hidden; padding: 12px; }
+    .page { height: 100%; min-height: 0; display: none; }
+    .page.active { display: grid; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); min-width: 0; min-height: 0; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); min-height: 46px; }
+    .panel-head h2 { margin: 0; font-size: 14px; }
+    .panel-body { padding: 12px; min-height: 0; }
+    .upload-grid { height: 100%; display: grid; grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr); gap: 12px; min-height: 0; }
+    .stack { display: grid; gap: 10px; align-content: start; min-height: 0; }
+    .source-grid { display: grid; gap: 10px; }
+    .source-box { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--surface-2); display: grid; gap: 8px; }
+    .source-box h3 { margin: 0; font-size: 13px; }
+    .video-list { display: grid; gap: 8px; overflow: auto; max-height: calc(100vh - var(--topbar) - 164px); padding-right: 2px; }
+    .video-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 9px; background: #fff; }
+    .video-row.active { border-color: var(--blue); background: var(--blue-2); }
+    .video-title { font-weight: 750; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .video-meta, .hint, .small { color: var(--muted); font-size: 12px; }
+    .empty { border: 1px dashed var(--line-strong); border-radius: 8px; padding: 18px; color: var(--muted); text-align: center; background: var(--surface-2); }
+    .annotate-layout { height: 100%; display: grid; grid-template-columns: minmax(360px, 1fr) 310px; gap: 12px; min-height: 0; }
+    .stage-panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+    .stage-wrap { min-height: 0; display: grid; place-items: center; background: #0d1117; padding: 10px; }
+    .stage { position: relative; background: #000; max-width: 100%; max-height: calc(100vh - var(--topbar) - 154px); aspect-ratio: var(--video-ratio, 4 / 3); width: min(100%, calc((100vh - var(--topbar) - 154px) * var(--video-ratio-value, 1.3333))); overflow: hidden; }
+    .stage video, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; }
+    .stage canvas { cursor: crosshair; }
+    .scrubber { padding: 10px 12px; border-top: 1px solid var(--line); display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+    .tools { display: grid; grid-template-rows: auto auto 1fr; gap: 10px; min-height: 0; overflow: auto; }
+    .tool-group { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--surface-2); display: grid; gap: 8px; }
+    .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .mode-btn.active { background: var(--blue); color: white; border-color: var(--blue); }
+    .object-row { display: grid; grid-template-columns: 1fr 48px 26px; gap: 8px; align-items: end; }
+    .swatch { width: 24px; height: 24px; border: 1px solid #333; border-radius: 4px; align-self: center; }
+    .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .download-layout { height: 100%; display: grid; grid-template-columns: minmax(320px, 0.85fr) minmax(320px, 1.15fr); gap: 12px; min-height: 0; }
+    .summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .metric { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--surface-2); }
+    .metric strong { display: block; font-size: 20px; }
+    .json-preview { height: calc(100vh - var(--topbar) - 176px); overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: #101820; color: #d9e6f2; border-radius: 8px; padding: 12px; margin: 0; }
+    .footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px; border-top: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 12px; min-width: 0; }
+    .status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .toast { color: var(--ink); }
+    .toast.err { color: var(--red); }
+    .toast.ok { color: var(--green); }
+    .overlay { position: fixed; inset: 0; display: none; place-items: center; background: rgba(238, 243, 248, 0.76); backdrop-filter: blur(2px); z-index: 20; }
+    .overlay.active { display: grid; }
+    .loading-card { width: min(360px, calc(100vw - 32px)); background: white; border: 1px solid var(--line); border-radius: 8px; padding: 18px; box-shadow: var(--shadow); display: grid; gap: 10px; text-align: center; }
+    .spinner { width: 34px; height: 34px; border: 4px solid #d5e5f0; border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; justify-self: center; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><strong>SAM 2 Assisted Annotator</strong><span id="videoCrumb">No video loaded</span></div>
+      <nav class="tabs" aria-label="Pages">
+        <button class="tab active" data-page="upload">Upload</button>
+        <button class="tab" data-page="annotate">Annotate</button>
+        <button class="tab" data-page="download">Download</button>
+      </nav>
+    </header>
+    <main class="content">
+      <section id="page-upload" class="page active">
+        <div class="upload-grid">
+          <div class="panel"><div class="panel-head"><h2>Add Video</h2></div><div class="panel-body source-grid"><div class="source-box"><h3>Local file</h3><input id="fileInput" type="file" accept="video/*,application/zip,.zip" multiple><button id="uploadBtn" class="primary">Process Upload</button></div></div></div>
+          <div class="panel"><div class="panel-head"><h2>Processed Videos</h2><button id="refreshVideosBtn">Refresh</button></div><div class="panel-body stack"><div id="videoList" class="video-list"></div></div></div>
+        </div>
+      </section>
+      <section id="page-annotate" class="page">
+        <div class="annotate-layout">
+          <div class="panel stage-panel"><div class="panel-head"><h2 id="stageTitle">Annotation Stage</h2><span id="frameBadge" class="small">No video</span></div><div class="stage-wrap"><div id="stage" class="stage"><video id="video" muted playsinline preload="auto"></video><canvas id="canvas"></canvas></div></div><div class="scrubber"><button id="play">Play</button><input type="range" id="slider" min="0" max="0" value="0"><span id="frameText" class="small">0 / 0</span></div></div>
+          <aside class="tools"><div class="panel"><div class="panel-head"><h2>Tools</h2></div><div class="panel-body stack"><div class="segmented"><button id="modePos" class="mode-btn active" data-mode="pos">+ Click</button><button id="modeNeg" class="mode-btn" data-mode="neg">- Click</button><button id="modeBox" class="mode-btn" data-mode="box">Box</button></div><div class="object-row"><label>Object id<input type="number" id="obj" value="1" min="1"></label><span class="swatch" id="swatch"></span></div></div></div><div class="panel"><div class="panel-head"><h2>Actions</h2></div><div class="panel-body actions-grid"><button id="run" class="primary">Refine</button><button id="propagate" class="primary">Propagate</button><button id="clearframe">Clear Frame</button><button id="clearall" class="danger">Clear All</button></div></div></aside>
+        </div>
+      </section>
+      <section id="page-download" class="page">
+        <div class="download-layout"><div class="panel"><div class="panel-head"><h2>Summary</h2><button id="refreshSummaryBtn">Refresh</button></div><div class="panel-body stack"><div class="summary-grid"><div class="metric"><span class="small">Objects</span><strong id="sumObjects">0</strong></div><div class="metric"><span class="small">Frames</span><strong id="sumFrames">0</strong></div></div><button id="download" class="success">Download JSON</button></div></div><div class="panel"><div class="panel-head"><h2>JSON Preview</h2></div><div class="panel-body"><pre id="jsonPreview" class="json-preview"></pre></div></div></div>
+      </section>
+    </main>
+    <footer class="footer"><div id="status" class="status">Ready</div><div id="toast" class="toast"></div></footer>
+  </div>
+  <div id="loadingOverlay" class="overlay"><div class="loading-card"><div class="spinner"></div><strong id="loadingTitle">Working</strong><span id="loadingDetail" class="hint">Please wait...</span></div></div>
+<script>
+  (async function() {
+    const $ = id => document.getElementById(id);
+    const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
+    const slider = $("slider"), status = $("status"), toast = $("toast"), swatch = $("swatch"), overlay = $("loadingOverlay");
+    const pages = { upload: $("page-upload"), annotate: $("page-annotate"), download: $("page-download") };
+    const CMAP = [[31,119,180],[255,127,14],[44,160,44],[214,39,40],[148,103,189],[140,86,75],[227,119,194],[127,127,127],[188,189,34],[23,190,207]];
+    let meta = null, FPS = 0, NF = 0, W = 0, H = 0, activeStem = "";
+    const state = { mode: "pos", objId: 1, frameIdx: 0, prompts: {}, masks: {}, pendingBox: null, dragStart: null };
+
+    function setBusy(on, t, d) { overlay.classList.toggle("active", !!on); if (t) $("loadingTitle").textContent = t; if (d) $("loadingDetail").textContent = d; }
+    async function safeFetchJSON(url, opts = {}) {
+      try {
+        const r = await fetch(url, opts); const text = await r.text(); let data;
+        try { data = JSON.parse(text); } catch (e) { throw new Error("Invalid JSON response: " + text.slice(0, 100)); }
+        if (data.traceback) console.error("Server Traceback:", data.traceback);
+        if (!r.ok || data.ok === false) throw new Error(data.error || "Server Error " + r.status);
+        return data;
+      } catch (err) { console.error(err); showToast("Error: " + err.message, true); throw err; }
+    }
+    async function withBusy(t, d, fn) { setBusy(true, t, d); try { return await fn(); } finally { setBusy(false); } }
+    function showToast(m, e) { toast.textContent = m; toast.className = "toast " + (e ? "err" : "ok"); setTimeout(() => { toast.textContent = ""; }, 4000); }
+    function setPage(n) { Object.entries(pages).forEach(([name, el]) => el.classList.toggle("active", name === n)); document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.page === n)); if (n === "download") refreshSummary(); }
+    const colorFor = oid => { const c = CMAP[(parseInt(oid) - 1) % 10]; return `rgb(${c[0]},${c[1]},${c[2]})`; };
+    function redraw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height); const fi = state.frameIdx;
+      if (state.masks[fi]) for (const oid in state.masks[fi]) { const img = state.masks[fi][oid]; if (img.complete) ctx.drawImage(img, 0, 0, W, H); }
+      if (state.prompts[fi]) for (const oid in state.prompts[fi]) {
+        const p = state.prompts[fi][oid];
+        p.points.forEach((pt, i) => { ctx.beginPath(); ctx.arc(pt[0], pt[1], 8, 0, Math.PI*2); ctx.fillStyle = p.labels[i] === 1 ? "rgba(0,200,0,0.8)" : "rgba(200,0,0,0.8)"; ctx.fill(); ctx.strokeStyle = "white"; ctx.stroke(); });
+        if (p.box) { const b = p.box; ctx.strokeStyle = colorFor(oid); ctx.lineWidth = 3; ctx.strokeRect(b[0], b[1], b[2]-b[0], b[3]-b[1]); }
+      }
+      if (state.pendingBox) { const b = state.pendingBox; ctx.strokeStyle = "yellow"; ctx.setLineDash([5,5]); ctx.strokeRect(b.x0, b.y0, b.x1-b.x0, b.y1-b.y0); ctx.setLineDash([]); }
+    }
+    function loadMasks(fi, per) { state.masks[fi] = {}; for (const oid in per) { const img = new Image(); img.onload = () => { if (state.frameIdx === fi) redraw(); }; img.src = per[oid]; state.masks[fi][oid] = img; } }
+    async function refreshSummary() { const data = await safeFetchJSON("annotations.json"); $("sumObjects").textContent = data.objects.length; $("sumFrames").textContent = Object.keys(data.frames).length; $("jsonPreview").textContent = JSON.stringify(data, null, 2); }
+    async function initializeVideo(stem) { await withBusy("Initializing", "Loading frames...", async () => { const res = await safeFetchJSON("init_video", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({stem}) }); activeStem = stem; meta = await safeFetchJSON("meta"); FPS = meta.fps; NF = meta.n_frames; W = meta.width; H = meta.height; canvas.width = W; canvas.height = H; slider.max = NF - 1; video.src = "video.mp4?t=" + Date.now(); setPage("annotate"); showToast("Ready to annotate."); }); }
+    async function refreshVideos() { const data = await safeFetchJSON("videos"); const list = $("videoList"); list.innerHTML = ""; data.videos.forEach(v => { const row = document.createElement("div"); row.className = "video-row"; row.innerHTML = `<div>${v.name} (${v.width}x${v.height})</div>`; const btn = document.createElement("button"); btn.textContent = "Initialize"; btn.onclick = () => initializeVideo(v.stem); row.appendChild(btn); list.appendChild(row); }); }
+
+    document.querySelectorAll(".tab").forEach(b => b.onclick = () => setPage(b.dataset.page));
+    $("uploadBtn").onclick = async () => { const files = $("fileInput").files; if (!files.length) return; const fd = new FormData(); for(let f of files) fd.append("files", f); await withBusy("Uploading", "Saving...", async () => { await safeFetchJSON("upload_video", { method: "POST", body: fd }); await refreshVideos(); }); };
+    $("run").onclick = async () => { const fi = state.frameIdx, oid = state.objId, p = state.prompts[fi]?.[oid] || {points:[], labels:[], box:null}; await withBusy("Refining", "Model inference...", async () => { const res = await safeFetchJSON("add_prompt", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({frame_idx: fi, obj_id: oid, points: p.points, labels: p.labels, box: p.box}) }); loadMasks(fi, res.masks); redraw(); }); };
+    $("propagate").onclick = async () => { await withBusy("Propagating", "Processing video...", async () => { const res = await safeFetchJSON("propagate", { method: "POST" }); for (let f in res.frames) loadMasks(parseInt(f), res.frames[f]); redraw(); }); };
+    $("download").onclick = () => window.location.href = "annotations.json?download=1";
+    video.addEventListener("timeupdate", () => { state.frameIdx = Math.max(0, Math.min(NF-1, Math.round(video.currentTime * FPS))); slider.value = state.frameIdx; redraw(); });
+    slider.oninput = () => { video.pause(); video.currentTime = slider.value / FPS; };
+    canvas.onmousedown = ev => { const r = canvas.getBoundingClientRect(); const x = (ev.clientX-r.left)*(W/r.width), y = (ev.clientY-r.top)*(H/r.height); if (state.mode === "box") { state.dragStart = [x,y]; state.pendingBox = {x0:x, y0:y, x1:x, y1:y}; } else { const p = state.prompts[state.frameIdx] = state.prompts[state.frameIdx] || {}; const o = p[state.objId] = p[state.objId] || {points:[], labels:[], box:null}; o.points.push([x,y]); o.labels.push(state.mode === "pos" ? 1 : 0); redraw(); } };
+    canvas.onmousemove = ev => { if (!state.dragStart) return; const r = canvas.getBoundingClientRect(); const x = (ev.clientX-r.left)*(W/r.width), y = (ev.clientY-r.top)*(H/r.height); state.pendingBox.x1 = x; state.pendingBox.y1 = y; redraw(); };
+    canvas.onmouseup = () => { if (!state.dragStart) return; const b = state.pendingBox; const p = state.prompts[state.frameIdx] = state.prompts[state.frameIdx] || {}; const o = p[state.objId] = p[state.objId] || {points:[], labels:[], box:null}; o.box = [Math.min(b.x0,b.x1), Math.min(b.y0,b.y1), Math.max(b.x0,b.x1), Math.max(b.y0,b.y1)]; state.dragStart = null; state.pendingBox = null; redraw(); };
+    $("obj").onchange = e => state.objId = parseInt(e.target.value);
+    await refreshVideos();
+  })();
+</script>
+</body>
+</html>

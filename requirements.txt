@@ -1,0 +1,12 @@
+opencv-python
+matplotlib
+tqdm
+gdown
+ipywidgets
+fastapi
+uvicorn[standard]
+requests
+numpy
+Pillow
+torch
+python-multipart
