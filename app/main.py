@@ -72,12 +72,56 @@ class AnnotationSession:
 SESSION = AnnotationSession()
 app = FastAPI(title="SAM 2 Annotator API")
 
+def build_annotations_json(session):
+    stem = os.path.splitext(os.path.basename(session.video_path or "video"))[0]
+    all_obj_ids = sorted({oid for m in session.video_segments.values() for oid in m})
+    objects = []
+    for oid in all_obj_ids:
+        history = []
+        for fi, p in sorted(session.prompts.get(oid, {}).items()):
+            history.append({
+                "frame_idx": int(fi),
+                "points":    p.get("points", []),
+                "labels":    p.get("labels", []),
+                "box":       p.get("box"),
+            })
+        objects.append({
+            "obj_id":     int(oid),
+            "color_rgba": list(obj_color(int(oid))),
+            "prompts":    history,
+        })
+    frames_json = {}
+    for fi, per_obj in sorted(session.video_segments.items()):
+        frames_json[str(int(fi))] = {
+            str(int(oid)): mask_to_rle(mask) for oid, mask in per_obj.items()
+        }
+    return {
+        "schema_version": "1.0",
+        "video": {
+            "name":     os.path.basename(session.video_path or ""),
+            "stem":     stem,
+            "fps":      float(session.fps),
+            "width":    int(session.width),
+            "height":   int(session.height),
+            "n_frames": int(session.n_frames),
+            "source":   session.source_meta,
+        },
+        "model": {
+            "checkpoint": "sam2.1_hiera_large.pt",
+            "config":     "configs/sam2.1/sam2.1_hiera_l.yaml",
+            "device":     str(session.device),
+            "predictor":  "SAM2VideoPredictor",
+        },
+        "objects": objects,
+        "frames":  frames_json,
+        "events":  session.events,
+    }
+
 def set_mock_mode(enabled: bool, device="cpu"):
     SESSION.use_mock = enabled
     SESSION.device = device
     if enabled:
         SESSION.predictor = MockSAM2Predictor()
-    # If disabled, the notebook is responsible for injecting the real predictor into SESSION.predictor
 
 # Request Models
 class AddPromptReq(BaseModel):
@@ -99,7 +143,7 @@ class InitVideoReq(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    static_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "index.html")
     with open(static_path, "r") as f: return f.read()
 
 @app.get("/meta")
@@ -229,8 +273,6 @@ def register_videos_for_server(paths, source_type, source_url):
         stem = os.path.splitext(os.path.basename(vp))[0]
         fdir = os.path.join("/content/workspace/frames", stem)
         if os.path.exists(fdir): shutil.rmtree(fdir)
-        # Mocking the probe/extract/preview logic here for main.py to be self-contained
-        # In actual deployment, these helpers would come from utils.py and have ffmpeg dependencies
         from .utils import probe_video, extract_frames_from_video, make_preview_mp4
         info = extract_frames_from_video(vp, fdir)
         preview = make_preview_mp4(vp, os.path.join("/content/workspace/previews", stem + ".mp4"))
