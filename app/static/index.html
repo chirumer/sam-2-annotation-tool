@@ -105,7 +105,11 @@
     <main class="content">
       <section id="page-upload" class="page active">
         <div class="upload-grid">
-          <div class="panel"><div class="panel-head"><h2>Add Video</h2></div><div class="panel-body source-grid"><div class="source-box"><h3>Local file</h3><input id="fileInput" type="file" accept="video/*,application/zip,.zip" multiple><button id="uploadBtn" class="primary">Process Upload</button></div></div></div>
+          <div class="panel"><div class="panel-head"><h2>Add Video</h2></div><div class="panel-body source-grid">
+            <div class="source-box"><h3>Local file</h3><input id="fileInput" type="file" accept="video/*,application/zip,.zip" multiple><button id="uploadBtn" class="primary">Process Upload</button></div>
+            <div class="source-box"><h3>Drive video</h3><input id="driveVideoUrl" type="text" placeholder="https://drive.google.com/file/d/..." value="https://drive.google.com/file/d/1uRDfl7XsIXsJGcACQtyw2vV7m25Q6QmM/view?usp=sharing"><button id="driveVideoBtn" class="primary">Fetch Video</button></div>
+            <div class="source-box"><h3>Drive ZIP</h3><input id="driveZipUrl" type="text" placeholder="https://drive.google.com/file/d/..." value="https://drive.google.com/file/d/1uRDfl7XsIXsJGcACQtyw2vV7m25Q6QmM/view?usp=sharing"><button id="driveZipBtn" class="primary">Fetch ZIP</button></div>
+          </div></div>
           <div class="panel"><div class="panel-head"><h2>Processed Videos</h2><button id="refreshVideosBtn">Refresh</button></div><div class="panel-body stack"><div id="videoList" class="video-list"></div></div></div>
         </div>
       </section>
