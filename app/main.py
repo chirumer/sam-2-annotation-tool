@@ -5,7 +5,7 @@ import datetime
 import traceback
 import threading
 import numpy as np
-from typing import List, Optional
+from typing import List, Optional, Any
 from dataclasses import dataclass, field
 from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
@@ -13,6 +13,19 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from .utils import *
 from .models import MockSAM2Predictor
+
+def log_debug(msg, **kwargs):
+    """Append a verbose debug entry to /content/workspace/out/server_debug.json"""
+    entry = {"ts": datetime.datetime.utcnow().isoformat() + "Z", "msg": msg}
+    entry.update(kwargs)
+    try:
+        out_dir = "/content/workspace/out"
+        os.makedirs(out_dir, exist_ok=True)
+        log_path = os.path.join(out_dir, "server_debug.json")
+        with open(log_path, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
 
 @dataclass
 class AnnotationSession:
