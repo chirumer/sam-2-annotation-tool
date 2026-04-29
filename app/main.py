@@ -199,6 +199,24 @@ def propagate():
     except Exception as e:
         return {"ok": False, "error": str(e), "traceback": traceback.format_exc()}
 
+@app.post("/done")
+def done():
+    try:
+        log_debug("Done action triggered. Persisting annotations to content/workspace/out...")
+        data = build_annotations_json(SESSION)
+        stem = data.get("video", {}).get("stem") or "video"
+        out_dir = os.path.join(SESSION.output_dir, stem)
+        os.makedirs(out_dir, exist_ok=True)
+        out_path = os.path.join(out_dir, "annotations.json")
+        with open(out_path, "w") as f:
+            json.dump(data, f, indent=2)
+        log_debug(f"Successfully saved annotations to {out_path}")
+        return {"ok": True, "saved_path": out_path, "n_objects": len(data.get("objects", []))}
+    except Exception as e:
+        tb = traceback.format_exc()
+        log_debug("done failed", error=str(e), traceback=tb)
+        return {"ok": False, "error": str(e), "traceback": tb}
+
 @app.get("/annotations.json")
 def annotations():
     try:
