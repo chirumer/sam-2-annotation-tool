@@ -184,6 +184,29 @@ async def upload_video(files: List[UploadFile] = File(...)):
     except Exception as e:
         return {"ok": False, "error": str(e), "traceback": traceback.format_exc()}
 
+@app.post("/fetch_drive_video")
+def fetch_drive_video(req: DriveReq):
+    try:
+        raw_dir = "/content/workspace/raw"
+        os.makedirs(raw_dir, exist_ok=True)
+        dest = os.path.join(raw_dir, f"{uuid.uuid4().hex[:8]}_drive_video.mp4")
+        download_gdrive(req.url, dest)
+        return register_videos_for_server([dest], "gdrive_link", req.url)
+    except Exception as e:
+        return {"ok": False, "error": str(e), "traceback": traceback.format_exc()}
+
+@app.post("/fetch_drive_zip")
+def fetch_drive_zip(req: DriveReq):
+    try:
+        raw_dir = "/content/workspace/raw"
+        os.makedirs(raw_dir, exist_ok=True)
+        dest = os.path.join(raw_dir, f"{uuid.uuid4().hex[:8]}_drive_zip.zip")
+        download_gdrive(req.url, dest)
+        paths = unzip_videos(dest, os.path.join(raw_dir, uuid.uuid4().hex[:8]))
+        return register_videos_for_server(paths, "gdrive_zip", req.url)
+    except Exception as e:
+        return {"ok": False, "error": str(e), "traceback": traceback.format_exc()}
+
 @app.post("/init_video")
 def init_video(req: InitVideoReq):
     try:
